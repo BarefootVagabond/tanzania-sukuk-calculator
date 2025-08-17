@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tanzania Sukuk Calculator</title>
+<style>
+  :root{
+    --bg:#0f172a; --panel:#0b1223; --card:#111827; --ink:#e5e7eb; --muted:#94a3b8;
+    --accent:#22c55e; --accent2:#38bdf8; --accent3:#f59e0b; --border:#1f2937;
+    --btn-blue:#38bdf8; --btn-green:#22c55e; --btn-orange:#f59e0b; --btn-purple:#a78bfa;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Inter,Roboto,Arial,sans-serif;background:linear-gradient(180deg,#0b1223,#0f172a);color:var(--ink)}
+  header{position:sticky;top:0;background:rgba(11,18,35,.9);backdrop-filter:blur(8px);border-bottom:1px solid #172038;z-index:10}
+  /* Wider canvas so the right panel can breathe */
+  .wrap{max-width:1400px;margin:auto;padding:16px}
+  /* Balanced grid: give more space to the right (outputs) on large screens */
+  .layout{
+    display:grid;
+    grid-template-columns: 0.8fr 1.2fr; /* left : right */
+    gap:16px;
+    margin-top:16px
+  }
+  /* Medium: 50/50 */
+  @media (max-width:1280px){ .layout{ grid-template-columns: 1fr 1fr; } }
+  /* Small: stack */
+  @media (max-width:1000px){ .layout{ grid-template-columns: 1fr; } }
+
+  h1{margin:0;font-size:1.25rem;display:flex;gap:10px;align-items:center}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden}
+  .card .pad{padding:18px}
+  label{font-size:.9rem;color:var(--muted)}
+  input,select{width:100%;padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--panel);color:var(--ink)}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+  .hint{color:var(--muted);font-size:.9rem}
+  .btns{display:flex;flex-wrap:wrap;gap:8px}
+  button{border:none;border-radius:10px;padding:10px 14px;cursor:pointer;font-weight:700}
+  .primary{background:var(--btn-green);color:#06220f}
+  .ghost{background:var(--panel);color:var(--ink);border:1px solid var(--border)}
+  .blue{background:var(--btn-blue);color:#04141b}
+  .orange{background:var(--btn-orange);color:#231a02}
+  .purple{background:var(--btn-purple);color:#150b2e}
+  table{width:100%;border-collapse:collapse}
+  th,td{border-bottom:1px solid #1f2937;padding:8px 6px;text-align:right;white-space:nowrap;font-size:0.95rem}
+  th:nth-child(1),td:nth-child(1){text-align:left}
+  tfoot td{font-weight:700}
+  .stat{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .kpi{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px}
+  .kpi b{display:block;font-size:1.2rem;margin-top:4px}
+  footer{color:#6b7280;text-align:center;padding:18px}
+  canvas{width:100%;height:300px;display:block;background:#0b1223;border:1px solid #1f2937;border-radius:12px}
+  .section-title{display:flex;justify-content:space-between;align-items:center;margin:14px 0 8px}
+  /* Right side widgets can expand more on large screens */
+  @media (min-width:1281px){
+    #tblWrap{ max-height:none; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>📈 Tanzania Sukuk Calculator</h1>
+    <div class="hint">Calculate <b>profit</b> for TZS/USD • Simple & Compound • Custom tenure & period • Dual chart • Annual Zakat.</div>
+  </div>
+</header>
+
+<div class="wrap layout">
+  <!-- Inputs -->
+  <section class="card">
+    <div class="pad">
+      <div class="row">
+        <div>
+          <label>Principal Currency</label>
+          <select id="principalCurrency">
+            <option value="TZS" selected>TZS (Tanzanian Shilling)</option>
+            <option value="USD">USD (US Dollar)</option>
+          </select>
+        </div>
+        <div>
+          <label>Principal Amount</label>
+          <input id="principal" type="number" min="0" step="0.01" placeholder="e.g., 20000000">
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>Profit rate (per annum, %)</label>
+          <input id="rate" type="number" min="0" max="100" step="0.01" placeholder="e.g., 12">
+        </div>
+        <div>
+          <label>Profit Type for Schedule</label>
+          <select id="profitType">
+            <option value="simple">Simple (paid out, not reinvested)</option>
+            <option value="compound" selected>Compound (reinvested)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row3">
+        <div>
+          <label>Tenure Value</label>
+          <input id="tenureValue" type="number" min="1" step="1" placeholder="e.g., 5">
+        </div>
+        <div>
+          <label>Tenure Unit</label>
+          <select id="tenureUnit">
+            <option value="years" selected>Years</option>
+            <option value="months">Months</option>
+          </select>
+        </div>
+        <div>
+          <label>Payment / Compounding Period</label>
+          <select id="period">
+            <option value="annual">Annual</option>
+            <option value="semi">Semiannual (2×/yr)</option>
+            <option value="quarterly" selected>Quarterly (4×/yr)</option>
+            <option value="monthly">Monthly (12×/yr)</option>
+            <option value="maturity">At Maturity (no interim payouts)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>Display Currency</label>
+          <select id="displayCurrency">
+            <option value="TZS">TZS</option>
+            <option value="USD" selected>USD</option>
+          </select>
+        </div>
+        <div>
+          <label>FX: 1 USD = <span id="fxLabel">TZS</span></label>
+          <input id="fx" type="number" min="0" step="0.0001" placeholder="e.g., 2600">
+        </div>
+      </div>
+
+      <div class="btns" style="margin-top:12px">
+        <button class="blue" data-preset="TZS-1">TZS • 1y</button>
+        <button class="blue" data-preset="TZS-2">TZS • 2y</button>
+        <button class="blue" data-preset="TZS-3">TZS • 3y</button>
+        <button class="blue" data-preset="TZS-4">TZS • 4y</button>
+        <button class="blue" data-preset="TZS-5">TZS • 5y</button>
+        <span style="width:8px"></span>
+        <button class="purple" data-preset="USD-1">USD • 1y</button>
+        <button class="purple" data-preset="USD-2">USD • 2y</button>
+        <button class="purple" data-preset="USD-3">USD • 3y</button>
+        <button class="purple" data-preset="USD-4">USD • 4y</button>
+        <button class="purple" data-preset="USD-5">USD • 5y</button>
+        <span style="flex:1"></span>
+        <button id="calc" class="primary">Calculate</button>
+        <button id="clear" class="ghost">Clear</button>
+      </div>
+
+      <div class="hint" style="margin-top:10px">
+        Preset rates are <b>illustrative defaults</b> you can overwrite (edit the Profit rate box).  
+        <ul>
+          <li><b>Simple</b> profit pays out each period and is <i>not</i> reinvested. Total value = principal + sum of payouts.</li>
+          <li><b>Compound</b> assumes reinvestment at the same rate every chosen period (except “At Maturity”, which compounds annually).</li>
+          <li>The <b>schedule</b> follows the “Profit Type for Schedule”, but the <b>chart</b> always shows both methods for comparison.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- Outputs -->
+  <section class="card">
+    <div class="pad">
+      <div class="stat">
+        <div class="kpi">
+          <span>Total Value at End</span>
+          <b id="kpiFV">—</b>
+        </div>
+        <div class="kpi">
+          <span>Total Profit</span>
+          <b id="kpiProfit">—</b>
+        </div>
+      </div>
+
+      <div style="margin-top:14px" class="row">
+        <div class="kpi">
+          <span>Effective Periodic Rate</span>
+          <b id="kpiPer">—</b>
+        </div>
+        <div class="kpi">
+          <span>Number of Periods</span>
+          <b id="kpiN">—</b>
+        </div>
+      </div>
+
+      <div class="section-title">
+        <h3 style="margin:0">Growth Chart — Simple vs Compound</h3>
+        <div class="hint">Blue = Compound • Orange = Simple</div>
+      </div>
+      <canvas id="chart" width="900" height="300" aria-label="Growth chart"></canvas>
+
+      <div class="section-title">
+        <h3 style="margin:0">Cash-Flow Schedule</h3>
+        <div class="btns">
+          <button id="download" class="orange">Download CSV</button>
+        </div>
+      </div>
+
+      <div id="tblWrap" style="overflow:auto;max-height:360px;border:1px solid #1f2937;border-radius:12px;margin-top:6px">
+        <table id="tbl">
+          <thead>
+            <tr><th>Period</th><th>Profit (payout)</th><th>Reinvested?</th><th>Ending Balance</th></tr>
+          </thead>
+          <tbody></tbody>
+          <tfoot>
+            <tr><td>Total</td><td id="tProfit" style="text-align:right">—</td><td></td><td id="tEnd" style="text-align:right">—</td></tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <div class="section-title">
+        <h3 style="margin:0">Zakat Calculator (per year)</h3>
+        <div class="hint">Configure base & rate, then review yearly Zakat below.</div>
+      </div>
+
+      <div class="row3">
+        <div>
+          <label>Zakat base</label>
+          <select id="zBase">
+            <option value="profit" selected>Profit only (annual profit)</option>
+            <option value="total">Total value (principal + profit)</option>
+          </select>
+        </div>
+        <div>
+          <label>Zakat rate (%)</label>
+          <input id="zRate" type="number" min="0" step="0.01" value="2.5">
+        </div>
+        <div>
+          <label>Nisab (optional, in display currency)</label>
+          <input id="zNisab" type="number" min="0" step="0.01" placeholder="e.g., 500 USD">
+        </div>
+      </div>
+
+      <div style="overflow:auto;max-height:300px;border:1px solid #1f2937;border-radius:12px;margin-top:10px">
+        <table id="zTbl">
+          <thead>
+            <tr><th>Year</th><th>Base Amount</th><th>Zakat Due</th><th>Cumulative Zakat</th></tr>
+          </thead>
+          <tbody></tbody>
+          <tfoot>
+            <tr><td>Total</td><td id="zBaseSum" style="text-align:right">—</td><td id="zTotal" style="text-align:right">—</td><td></td></tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </section>
+</div>
+
+<footer>Educational planning tool • Uses the term <b>profit</b> to align with Sukuk terminology.</footer>
+
+<script>
+(function(){
+  const el = id => document.getElementById(id);
+
+  // Inputs
+  const principalCurrency = el('principalCurrency');
+  const principal = el('principal');
+  const rate = el('rate');
+  const profitType = el('profitType');
+  const tenureValue = el('tenureValue');
+  const tenureUnit = el('tenureUnit');
+  const period = el('period');
+  const displayCurrency = el('displayCurrency');
+  const fx = el('fx');
+  const fxLabel = el('fxLabel');
+
+  // KPIs
+  const kpiFV = el('kpiFV');
+  const kpiProfit = el('kpiProfit');
+  const kpiPer = el('kpiPer');
+  const kpiN = el('kpiN');
+
+  // Tables
+  const tbody = document.querySelector('#tbl tbody');
+  const tProfit = el('tProfit');
+  const tEnd = el('tEnd');
+
+  // Zakat elements
+  const zBaseSel = el('zBase');
+  const zRateInp = el('zRate');
+  const zNisab = el('zNisab');
+  const zBody = document.querySelector('#zTbl tbody');
+  const zBaseSum = el('zBaseSum');
+  const zTotal = el('zTotal');
+
+  // Chart
+  const canvas = el('chart');
+  const ctx = canvas.getContext('2d');
+
+  const DEFAULT_FX = 2600; // 1 USD ≈ 2600 TZS
+  const PRESETS = {
+    TZS: {1:12.0, 2:12.5, 3:13.0, 4:13.5, 5:14.0},
+    USD: {1:5.0,  2:5.5,  3:6.0,  4:6.5,  5:7.0}
+  };
+
+  function fmtCurrency(val, code){
+    const opts = { style:'currency', currency: code, minimumFractionDigits:(code==='TZS'?0:2), maximumFractionDigits:(code==='TZS'?0:2) };
+    try{ return new Intl.NumberFormat('en', opts).format(val); }
+    catch(e){
+      const nf = new Intl.NumberFormat('en',{ minimumFractionDigits:(code==='TZS'?0:2), maximumFractionDigits:(code==='TZS'?0:2)});
+      const sym = code==='TZS'?'TZS ':'$';
+      return sym + nf.format(val);
+    }
+  }
+  function convert(amount, from, to, fxRate){
+    if(from===to) return amount;
+    if(!fxRate || fxRate<=0) return amount;
+    if(from==='USD' && to==='TZS') return amount * fxRate;
+    if(from==='TZS' && to==='USD') return amount / fxRate;
+    return amount;
+  }
+  function freqFromPeriod(p){
+    return p==='monthly'?12 : p==='quarterly'?4 : p==='semi'?2 : p==='annual'?1 : 0;
+  }
+  function periodsTotal(tVal, unit, freq){
+    const years = unit==='years' ? tVal : (tVal/12);
+    const n = freq===0 ? (unit==='years' ? Math.round(tVal) : Math.round(tVal/12)) : Math.round(years*freq);
+    return { years, n };
+  }
+
+  function clearSchedule(){
+    tbody.innerHTML = '';
+    tProfit.textContent = '—';
+    tEnd.textContent = '—';
+  }
+
+  function buildCSV(rows, curr){
+    const header = ['Period',`Profit (payout) [${curr}]`,'Reinvested?',`Ending Balance [${curr}]`];
+    const lines = [header.join(',')];
+    rows.forEach(r=>lines.push([r.p, r.payoutPlain, r.reinv?'Yes':'No', r.endBalPlain].join(',')));
+    return lines.join('\n');
+  }
+
+  let lastRows = null;
+
+  function simulatePaths(P, rY, years, freq){
+    // Returns arrays (per step) of balances for both compound and simple
+    const per = (freq? rY/freq : rY);
+    if(freq===0){ // maturity: show yearly steps
+      const steps = Math.round(years);
+      const comp=[], simp=[];
+      for(let i=0;i<=steps;i++){
+        const compVal = P * Math.pow(1 + rY, i);
+        const simpVal = P + P*rY*i;
+        comp.push(compVal); simp.push(simpVal);
+      }
+      return {comp, simp, xSteps:steps};
+    }
+    const n = Math.round(years*freq);
+    const comp=[P], simp=[P];
+    let bal=P, simpleCum=0;
+    for(let i=1;i<=n;i++){
+      bal = bal * (1 + per);
+      comp.push(bal);
+      simpleCum += P * per;
+      simp.push(P + simpleCum);
+    }
+    return {comp, simp, xSteps:n};
+  }
+
+  function drawChart(valuesComp, valuesSimp, curr){
+    const w=canvas.width, h=canvas.height;
+    ctx.clearRect(0,0,w,h);
+
+    const padL=70, padR=16, padT=16, padB=32;
+    const plotW = w - padL - padR, plotH = h - padT - padB;
+
+    // Axes
+    ctx.strokeStyle = '#23304a'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(padL, padT); ctx.lineTo(padL, padT+plotH); ctx.lineTo(padL+plotW, padT+plotH); ctx.stroke();
+
+    if(valuesComp.length===0 || valuesSimp.length===0) return;
+
+    const all = valuesComp.concat(valuesSimp);
+    const minV = Math.min(...all), maxV = Math.max(...all);
+    const yMin = minV*0.98, yMax = maxV*1.02;
+
+    // grid
+    ctx.strokeStyle = '#1b2640'; ctx.setLineDash([3,4]);
+    for(let i=1;i<=4;i++){
+      const y = padT + plotH - (plotH*i/4);
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL+plotW, y); ctx.stroke();
+    }
+    ctx.setLineDash([]);
+
+    // y labels
+    ctx.fillStyle = '#94a3b8'; ctx.font = '12px system-ui, -apple-system, Segoe UI, Roboto, Arial';
+    const labels = [yMin, (yMin+yMax)/2, yMax];
+    labels.forEach(v=>{ const y = padT + plotH - (plotH*(v - yMin)/(yMax - yMin)); ctx.fillText(fmtCurrency(v, curr), 8, y+4); });
+
+    function plotLine(vals, color){
+      ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath();
+      vals.forEach((v,i)=>{
+        const x = padL + plotW*(i/(vals.length-1||1));
+        const y = padT + plotH - (plotH*(v - yMin)/(yMax - yMin));
+        if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      });
+      ctx.stroke();
+    }
+    plotLine(valuesComp, '#38bdf8'); // blue = compound
+    plotLine(valuesSimp, '#f59e0b'); // orange = simple
+
+    // Legend
+    ctx.fillStyle='#e5e7eb'; ctx.font = '12px system-ui, -apple-system, Segoe UI, Roboto, Arial';
+    ctx.fillText(`Compound`, padL+6, padT+14);
+    ctx.fillStyle='#94a3b8'; ctx.fillRect(padL-4, padT+8, 4, 2);
+    ctx.fillStyle='#e5e7eb'; ctx.fillText(`Simple`, padL+100, padT+14);
+  }
+
+  function calculate(){
+    const P = Number(principal.value);
+    const rY = Number(rate.value)/100;
+    const tVal = Number(tenureValue.value);
+    const freq = freqFromPeriod(period.value);
+    const fxRateDisp = Number(fx.value) || DEFAULT_FX;
+
+    if(!(P>0 && rY>=0 && tVal>0)){
+      alert('Please enter principal, profit rate, and tenure.');
+      return;
+    }
+
+    const { years, n } = periodsTotal(tVal, tenureUnit.value, freq);
+
+    // ---- Schedule for chosen profitType ----
+    clearSchedule();
+    let rows=[], endBalance=P, totalPayout=0, totalValueBase, totalProfitBase, perRateForKpi, numPeriodsKpi;
+
+    if(profitType.value === 'simple'){
+      const perRate = (period.value==='maturity' ? rY*years : rY / (freq||1));
+      const periods = (period.value==='maturity' ? 1 : n);
+      for(let i=1;i<=periods;i++){
+        const payout = (period.value==='maturity') ? P*rY*years : P*(rY/freq);
+        totalPayout += payout;
+        rows.push({p:i, reinv:false, payoutBase:payout, endBalBase:P});
+      }
+      totalValueBase = P + totalPayout;
+      totalProfitBase = totalPayout;
+      perRateForKpi = (period.value==='maturity') ? `${(rY*100).toFixed(2)}% / year (single payout at end)` : `${(rY/freq*100).toFixed(4)}% per period`;
+      numPeriodsKpi = (period.value==='maturity') ? '1 (at maturity)' : String(n);
+    } else {
+      const compoundFreq = (period.value==='maturity') ? 1 : freq;
+      const periods = (period.value==='maturity') ? Math.round(years) : n;
+      const perRate = rY / compoundFreq;
+      for(let i=1;i<=periods;i++){
+        const profit = endBalance * perRate;
+        endBalance += profit;
+        rows.push({p:i, reinv:true, payoutBase:profit, endBalBase:endBalance});
+      }
+      totalValueBase = endBalance;
+      totalProfitBase = endBalance - P;
+      perRateForKpi = `${(perRate*100).toFixed(4)}% per period`;
+      numPeriodsKpi = String(periods);
+    }
+
+    // KPIs (converted for display)
+    const dispCurr = displayCurrency.value;
+    const totalValueDisp = convert(totalValueBase, principalCurrency.value, dispCurr, fxRateDisp);
+    const totalProfitDisp = convert(totalProfitBase, principalCurrency.value, dispCurr, fxRateDisp);
+    kpiPer.textContent = perRateForKpi;
+    kpiN.textContent = numPeriodsKpi;
+    kpiFV.textContent = fmtCurrency(totalValueDisp, dispCurr);
+    kpiProfit.textContent = fmtCurrency(totalProfitDisp, dispCurr);
+
+    // Table render & CSV
+    tbody.innerHTML = '';
+    let csvRows=[];
+    rows.forEach(r=>{
+      const payoutDisp = convert(r.payoutBase, principalCurrency.value, dispCurr, fxRateDisp);
+      const endBalDisp = convert(r.endBalBase, principalCurrency.value, dispCurr, fxRateDisp);
+      tbody.insertAdjacentHTML('beforeend',
+        `<tr><td>${r.p}</td><td style="text-align:right">${fmtCurrency(payoutDisp, dispCurr)}</td><td style="text-align:center">${r.reinv?'Yes':'No'}</td><td style="text-align:right">${fmtCurrency(endBalDisp, dispCurr)}</td></tr>`
+      );
+      csvRows.push({p:r.p, payoutPlain:Number(payoutDisp.toFixed(2)), reinv:r.reinv, endBalPlain:Number(endBalDisp.toFixed(2))});
+    });
+    tProfit.textContent = fmtCurrency(totalProfitDisp, dispCurr);
+    tEnd.textContent = fmtCurrency(totalValueDisp, dispCurr);
+    const csv = buildCSV(csvRows, dispCurr);
+    el('download').onclick = ()=>{
+      const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `tanzania_sukuk_schedule_${Date.now()}.csv`; a.click();
+      URL.revokeObjectURL(url);
+    };
+    lastRows = { rows };
+
+    // ---- Dual chart (always both paths) ----
+    const xFreq = (freq===0 ? 1 : freq); // if maturity, use annual steps for chart
+    const path = simulatePaths(P, rY, years, xFreq);
+    const compDisp = path.comp.map(v=>convert(v, principalCurrency.value, dispCurr, fxRateDisp));
+    const simpDisp = path.simp.map(v=>convert(v, principalCurrency.value, dispCurr, fxRateDisp));
+    drawChart(compDisp, simpDisp, dispCurr);
+
+    // ---- Zakat per year ----
+    renderZakat(P, rY, Math.round(years), dispCurr, fxRateDisp, zBaseSel.value, Number(zRateInp.value)/100, Number(zNisab.value||0));
+  }
+
+  function yearlyTotals(P, rY, years){
+    // returns arrays per whole year: {y, simple, compound}
+    const out=[];
+    for(let y=1;y<=years;y++){
+      out.push({ y, simple: P + P*rY*y, compound: P * Math.pow(1+rY, y) });
+    }
+    return out;
+  }
+
+  function renderZakat(P, rY, yearsInt, dispCurr, fxRateDisp, baseMode, zRate, nisab){
+    const totals = yearlyTotals(P, rY, yearsInt);
+    zBody.innerHTML='';
+    let cum=0, baseSum=0;
+
+    totals.forEach(t=>{
+      const profitThisYear_comp = (P * Math.pow(1+rY, t.y)) - (P * Math.pow(1+rY, t.y-1));
+      const baseAmount = (baseMode==='profit') ? profitThisYear_comp : t.compound; // base in principal currency
+      const baseInDisp = convert(baseAmount, principalCurrency.value, dispCurr, fxRateDisp);
+
+      const zakatDue = (nisab && baseInDisp<nisab) ? 0 : baseInDisp * zRate;
+      cum += zakatDue; baseSum += baseInDisp;
+
+      zBody.insertAdjacentHTML('beforeend',
+        `<tr><td>Year ${t.y}</td><td style="text-align:right">${fmtCurrency(baseInDisp, dispCurr)}</td><td style="text-align:right">${fmtCurrency(zakatDue, dispCurr)}</td><td style="text-align:right">${fmtCurrency(cum, dispCurr)}</td></tr>`
+      );
+    });
+    zBaseSum.textContent = fmtCurrency(baseSum, dispCurr);
+    zTotal.textContent = fmtCurrency(cum, dispCurr);
+  }
+
+  // Presets
+  document.querySelectorAll('[data-preset]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const [curr, yrsStr] = btn.dataset.preset.split('-');
+      const yrs = Number(yrsStr);
+      principalCurrency.value = curr;
+      tenureValue.value = yrs;
+      tenureUnit.value = 'years';
+      rate.value = (curr==='TZS'?{1:12,2:12.5,3:13,4:13.5,5:14}[yrs]:{1:5,2:5.5,3:6,4:6.5,5:7}[yrs]);
+      period.value = 'quarterly';
+      profitType.value = 'compound';
+      displayCurrency.value = (curr==='TZS' ? 'USD' : 'TZS');
+      if(!fx.value) fx.value = DEFAULT_FX;
+    });
+  });
+
+  // Buttons
+  el('calc').addEventListener('click', calculate);
+  el('clear').addEventListener('click', ()=>{
+    principal.value = '';
+    rate.value = '';
+    tenureValue.value = '';
+    profitType.value = 'compound';
+    principalCurrency.value = 'TZS';
+    period.value = 'quarterly';
+    displayCurrency.value = 'USD';
+    fx.value = DEFAULT_FX;
+    clearSchedule();
+    kpiFV.textContent = kpiProfit.textContent = kpiPer.textContent = kpiN.textContent = '—';
+    zBody.innerHTML=''; zBaseSum.textContent='—'; zTotal.textContent='—';
+    drawChart([],[], displayCurrency.value);
+  });
+
+  // Recompute Zakat when its inputs change (after a calc)
+  [zBaseSel, zRateInp, zNisab, displayCurrency, fx].forEach(ctrl=>{
+    ctrl.addEventListener('input', ()=>{
+      const P = Number(principal.value);
+      const rY = Number(rate.value)/100;
+      const tVal = Number(tenureValue.value);
+      const freq = freqFromPeriod(period.value);
+      const { years } = periodsTotal(tVal, tenureUnit.value, freq);
+      if(!(P>0 && rY>=0 && years>0)) return;
+      const dispCurr = displayCurrency.value;
+      const fxRateDisp = Number(fx.value)||DEFAULT_FX;
+      renderZakat(P, rY, Math.round(years), dispCurr, fxRateDisp, zBaseSel.value, Number(zRateInp.value)/100, Number(zNisab.value||0));
+    });
+  });
+
+  // FX label
+  fxLabel.textContent = 'TZS';
+
+  // Sensible defaults
+  principalCurrency.value = 'TZS';
+  principal.value = '20000000';
+  rate.value = '14';
+  tenureValue.value = '5';
+  tenureUnit.value = 'years';
+  period.value = 'quarterly';
+  displayCurrency.value = 'USD';
+  fx.value = DEFAULT_FX;
+
+  // Initial empty chart
+  drawChart([],[], displayCurrency.value);
+})();
+</script>
+</body>
+</html>
